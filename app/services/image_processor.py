@@ -1,4 +1,5 @@
 from PIL import Image
+import os
 
 
 def preprocess_image(path, max_size=1024):
@@ -6,6 +7,10 @@ def preprocess_image(path, max_size=1024):
 
     img.thumbnail((max_size, max_size))
 
-    img.save(path, optimize=True, quality=85)
+    img = img.convert("RGB")
 
-    return path
+    new_path = os.path.splitext(path)[0] + ".png"
+
+    img.save(new_path, format="PNG", optimize=True)
+
+    return new_path

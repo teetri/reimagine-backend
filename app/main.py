@@ -30,11 +30,14 @@ async def generate_design(
 
     prompt = prompt_builder.build_prompt(data)
 
-    try:
-        generated_image_path = ml_client.generate_image(
-            prompt, room_image_path)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Image generation failed")
+    # print("Generated Prompt:", prompt)
+    # print("Image Path:", room_image_path)
+
+    # try:
+    generated_image_path = ml_client.generate_image(
+        prompt, room_image_path)
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail="Image generation failed")
 
     app.mount("/outputs", StaticFiles(directory="app/temp/outputs"),
               name="outputs")
