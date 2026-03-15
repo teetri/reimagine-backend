@@ -1,4 +1,4 @@
-def build_prompt(text_input):
+def build_prompt(text_input, has_inspiration):
 
     style = text_input.get("style")
     color_tone = text_input.get("color_tone")
@@ -31,5 +31,32 @@ def build_prompt(text_input):
       The result should be photorealistic and look like a professionally designed interior.
       Do not change the room architecture or viewpoint.
       """
+    if has_inspiration:
+        prompt += """
+          The second image is an inspiration image.
+          Transfer the design style from it.
+          """
 
     return prompt.strip()
+
+
+# def build_prompt(data, has_inspiration):
+
+#     base = f"""
+# Redesign the room according to the following requirements:
+
+# Style: {data['style']}
+# Color tone: {data['color_tone']}
+# Room type: {data['room_type']}
+# Remove: {data['to_remove']}
+# Add: {data['to_add']}
+# """
+
+#     if has_inspiration:
+#         base += """
+
+# The second image is an inspiration image.
+# Transfer the design style from it.
+# """
+
+#     return base
