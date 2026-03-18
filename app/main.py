@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, APIRouter
 import json
 
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +9,7 @@ from app.services import storage, image_processor, ml_client, prompt_builder
 app = FastAPI()
 
 app.mount("/outputs", StaticFiles(directory="app/temp/outputs"), name="outputs")
+app.mount("/inputs", StaticFiles(directory="app/temp/uploads"), name="inputs")
 
 
 @app.post("/generate")
@@ -64,4 +65,76 @@ async def generate_design(
 
     return {
         "generated_image_url": f"/outputs/{os.path.basename(generated_image_path)}"
+    }
+
+
+@app.get("/history")
+async def get_history():
+
+    inputs_dir = "app/temp/uploads"
+    outputs_dir = "app/temp/outputs"
+
+    def list_files(directory, base_url):
+        files = []
+
+        if not os.path.exists(directory):
+            return files
+
+        for filename in os.listdir(directory):
+            filepath = os.path.join(directory, filename)
+
+            if os.path.isfile(filepath):
+                files.append({
+                    "filename": filename,
+                    "url": f"{base_url}/{filename}",
+                    "created_at": os.path.getctime(filepath)
+                })
+
+        # sort newest first
+        files.sort(key=lambda x: x["created_at"], reverse=True)
+
+        return files
+
+    inputs = list_files(inputs_dir, "/inputs")
+    outputs = list_files(outputs_dir, "/outputs")
+
+    return {
+        "inputs": inputs,
+        "outputs": outputs
+    }
+
+
+@app.delete("/history")
+async def clear_history():
+
+    inputs_dir = "app/temp/uploads"
+    outputs_dir = "app/temp/outputs"
+
+    def clear_directory(directory):
+        if not os.path.exists(directory):
+            return 0
+
+        deleted_count = 0
+
+        for filename in os.listdir(directory):
+            filepath = os.path.join(directory, filename)
+
+            if os.path.isfile(filepath):
+                os.remove(filepath)
+                deleted_count += 1
+
+        return deleted_count
+
+    try:
+        inputs_deleted = clear_directory(inputs_dir)
+        outputs_deleted = clear_directory(outputs_dir)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to clear history")
+
+    return {
+        "message": "History cleared successfully",
+        "deleted": {
+            "inputs": inputs_deleted,
+            "outputs": outputs_deleted
+        }
     }
