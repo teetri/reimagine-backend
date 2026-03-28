@@ -1,3 +1,4 @@
+from importlib.metadata import metadata
 import os
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, APIRouter
@@ -5,15 +6,25 @@ import json
 
 from fastapi.staticfiles import StaticFiles
 from app.services import storage, image_processor, ml_client, prompt_builder
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
 
 app.mount("/outputs", StaticFiles(directory="app/temp/outputs"), name="outputs")
 app.mount("/inputs", StaticFiles(directory="app/temp/uploads"), name="inputs")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/generate")
 async def generate_design(
+    project_name: str = Form(...),
     room_image: UploadFile = File(...),
     inspiration_image: UploadFile | None = File(None),
     text_input: str = Form(...)
@@ -63,7 +74,17 @@ async def generate_design(
     # except Exception as e:
     #     raise HTTPException(status_code=500, detail="Image generation failed")
 
+    metadata = {
+        "project_name": project_name,
+        "input_image": os.path.basename(room_image_path),
+        "inspiration_image": os.path.basename(inspiration_image_path) if inspiration_image_path else None,
+        "output_image": os.path.basename(generated_image_path)
+    }
+
+    storage.save_metadata(metadata)
+
     return {
+        "project_name": project_name,
         "generated_image_url": f"/outputs/{os.path.basename(generated_image_path)}"
     }
 
@@ -73,6 +94,12 @@ async def get_history():
 
     inputs_dir = "app/temp/uploads"
     outputs_dir = "app/temp/outputs"
+
+    def load_metadata(json_path):
+        if os.path.exists(json_path):
+            with open(json_path, "r") as f:
+                return json.load(f)
+        return None
 
     def list_files(directory, base_url):
         files = []
@@ -84,11 +111,25 @@ async def get_history():
             filepath = os.path.join(directory, filename)
 
             if os.path.isfile(filepath):
-                files.append({
+
+                file_info = {
                     "filename": filename,
                     "url": f"{base_url}/{filename}",
-                    "created_at": os.path.getctime(filepath)
-                })
+                    "created_at": os.path.getctime(filepath),
+                    "project_name": None   # default
+                }
+
+                # If this is an output image, try to load metadata
+                if directory.endswith("/outputs") and filename.lower().endswith(".png"):
+                    json_path = os.path.join(
+                        directory, filename.replace(".png", ".json"))
+                    metadata = load_metadata(json_path)
+
+                    if metadata:
+                        file_info["project_name"] = metadata.get(
+                            "project_name")
+
+                files.append(file_info)
 
         # sort newest first
         files.sort(key=lambda x: x["created_at"], reverse=True)
